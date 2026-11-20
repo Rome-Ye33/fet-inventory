@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ModelSelect, { modelOf } from '../components/ModelSelect'
 import { ActionTag, CategoryTag, MoveStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
 import VoidButton from '../components/VoidButton'
@@ -30,6 +31,7 @@ export default function MovementsPage() {
   const [action, setAction] = useState<string | undefined>()
   const [status, setStatus] = useState<string | undefined>()
   const [cat, setCat] = useState<string | undefined>()
+  const [model, setModel] = useState<string | undefined>()
   const [loc, setLoc] = useState<string | undefined>()
   const [q, setQ] = useState('')
   const [drawerVin, setDrawerVin] = useState<string | null>(null)
@@ -59,6 +61,7 @@ export default function MovementsPage() {
       if (action && r.action !== action) return false
       if (status && r.status !== status) return false
       if (cat && r.category !== cat) return false
+      if (model && modelOf(r) !== model) return false
       if (loc && r.from_location !== loc && r.to_location !== loc) return false
       if (s) {
         const hay = [r.vin, r.customer, r.to_location, r.from_location, r.brand, r.product_name, r.model, r.product_code, r.remark, r.outbound_no, String(r.seq)]
@@ -68,7 +71,15 @@ export default function MovementsPage() {
       }
       return true
     })
-  }, [rows, action, status, cat, loc, q])
+  }, [rows, action, status, cat, model, loc, q])
+
+  // 型号下拉只列选中类别里有的型号
+  const modelRows = useMemo(() => (cat ? rows.filter((r) => r.category === cat) : rows), [rows, cat])
+  const changeCat = (v?: string) => {
+    setCat(v)
+    // 换了类别，原来选的型号这个类别里没有就一起清掉
+    if (model && v && !rows.some((r) => r.category === v && modelOf(r) === model)) setModel(undefined)
+  }
 
   const totals = useMemo(() => {
     const n: Record<string, number> = { INBOUND: 0, SOLD: 0, TRANSFER: 0 }
@@ -191,9 +202,10 @@ export default function MovementsPage() {
           placeholder={t('类别')}
           style={{ width: 120 }}
           value={cat}
-          onChange={setCat}
+          onChange={changeCat}
           options={CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_LABEL[c]) }))}
         />
+        <ModelSelect rows={modelRows} value={model} onChange={setModel} />
         <Select
           allowClear
           placeholder={t('位置')}

@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import LinkButton from '../components/LinkButton'
+import ModelSelect, { modelOf } from '../components/ModelSelect'
 import { CategoryTag, CustomsTag, ExcludedTag, StockStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
 import { exportXlsx } from '../lib/excel'
@@ -17,6 +18,8 @@ import type { Stock } from '../lib/supabase'
 const STATUSES = ['In Stock', 'Out of Stock', 'Void'] as const
 
 const needsReview = (r: Stock) => !!r.excluded || !!r.review_note?.trim()
+
+const inCatBrand = (r: Stock, c: string, b: string) => (!c || r.category === c) && (!b || r.brand === b)
 
 export default function VehiclesPage() {
   const t = useT()
@@ -33,17 +36,21 @@ export default function VehiclesPage() {
   const loc = params.get('loc') ?? ''
   const cat = params.get('cat') ?? ''
   const brand = params.get('brand') ?? ''
+  const model = params.get('model') ?? ''
   const customs = params.get('customs') ?? ''
   const q = (params.get('q') ?? '').trim().toUpperCase()
 
-  const setParam = (key: string, value: string | undefined) => {
+  const update = (changes: Record<string, string | undefined>) => {
     const next = new URLSearchParams(params)
-    // 状态“全部”要记下来，不然会变回默认的“在库”
-    if (key === 'status') next.set('status', value || 'all')
-    else if (value) next.set(key, value)
-    else next.delete(key)
+    for (const [key, value] of Object.entries(changes)) {
+      // 状态“全部”要记下来，不然会变回默认的“在库”
+      if (key === 'status') next.set('status', value || 'all')
+      else if (value) next.set(key, value)
+      else next.delete(key)
+    }
     setParams(next, { replace: true })
   }
+  const setParam = (key: string, value: string | undefined) => update({ [key]: value })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -57,6 +64,11 @@ export default function VehiclesPage() {
   }, [load])
 
   const brands = useMemo(() => [...new Set(rows.map((r) => r.brand ?? '').filter(Boolean))].sort(), [rows])
+  // 型号下拉跟着类别、品牌走：选了品牌就只列这个品牌的型号
+  const modelRows = useMemo(() => rows.filter((r) => inCatBrand(r, cat, brand)), [rows, cat, brand])
+  // 换了类别或品牌以后，原来选的型号对不上就一起清掉，免得筛出来是空的
+  const keepModel = (c: string | undefined, b: string | undefined) =>
+    model && rows.some((r) => inCatBrand(r, c ?? '', b ?? '') && modelOf(r) === model) ? model : undefined
 
   const shown = useMemo(
     () =>
@@ -67,6 +79,7 @@ export default function VehiclesPage() {
         if (loc && r.current_location !== loc) return false
         if (cat && r.category !== cat) return false
         if (brand && r.brand !== brand) return false
+        if (model && modelOf(r) !== model) return false
         if (customs && r.customs_status !== customs) return false
         if (q) {
           const hay = [r.vin, r.brand, r.product_name, r.model, r.color, r.product_code, r.remark, r.review_note, r.current_location]
@@ -76,7 +89,7 @@ export default function VehiclesPage() {
         }
         return true
       }),
-    [rows, review, status, loc, cat, brand, customs, q],
+    [rows, review, status, loc, cat, brand, model, customs, q],
   )
 
   const exportExcel = () =>
@@ -198,7 +211,7 @@ export default function VehiclesPage() {
           placeholder={t('类别')}
           style={{ width: 120 }}
           value={cat || undefined}
-          onChange={(v?: string) => setParam('cat', v)}
+          onChange={(v?: string) => update({ cat: v, model: keepModel(v, brand) })}
           options={CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_LABEL[c]) }))}
         />
         <Select
@@ -216,9 +229,10 @@ export default function VehiclesPage() {
           style={{ width: 160 }}
           showSearch={{ optionFilterProp: 'label' }}
           value={brand || undefined}
-          onChange={(v?: string) => setParam('brand', v)}
+          onChange={(v?: string) => update({ brand: v, model: keepModel(cat, v) })}
           options={brands.map((b) => ({ value: b, label: b }))}
         />
+        <ModelSelect rows={modelRows} value={model} onChange={(v) => setParam('model', v)} showBrands={!brand} />
         <Select
           allowClear
           placeholder={t('报关状态')}

@@ -591,3 +591,26 @@ html[lang='en'] .logo-name {
   font-size: inherit;
   line-height: inherit;
 }
+/* 型号下拉：型号在前，品牌小字在后；放不下时先省略品牌 */
+.model-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.model-option-name,
+.model-option-brand {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-option-name {
+  flex: 0 1 auto;
+}
+.model-option-brand {
+  flex: 0 100 auto;
+  margin-inline-start: auto;
+  color: #8a8f98;
+  font-size: 12px;
+}

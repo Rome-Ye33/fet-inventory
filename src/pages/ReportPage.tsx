@@ -2,6 +2,7 @@ import { DownloadOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icon
 import { App, Button, Checkbox, Input, InputNumber, Modal, Select, Space, Table, Tabs, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ModelSelect, { modelOf } from '../components/ModelSelect'
 import { CategoryTag } from '../components/Tags'
 import { useAuth } from '../lib/auth'
 import { errorText } from '../lib/errors'
@@ -36,6 +37,7 @@ export default function ReportPage() {
   const [tab, setTab] = useState<string>('Passenger')
   const [showZero, setShowZero] = useState(false)
   const [q, setQ] = useState('')
+  const [model, setModel] = useState<string | undefined>()
   const [loc, setLoc] = useState<string | undefined>()
   const [pricing, setPricing] = useState<{ code: string; name: string; price: number | null } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -61,11 +63,12 @@ export default function ReportPage() {
 
   const match = useCallback(
     (r: { brand: string | null; product_name: string | null; model: string | null; color: string | null; product_code: string | null }) => {
+      if (model && modelOf(r) !== model) return false
       const s = q.trim().toUpperCase()
       if (!s) return true
       return [r.brand, r.product_name, r.model, r.color, r.product_code].join(' ').toUpperCase().includes(s)
     },
-    [q],
+    [q, model],
   )
 
   const byCat = useMemo(() => {
@@ -80,6 +83,23 @@ export default function ReportPage() {
 
   const locNames = useMemo(() => [...new Set(byLoc.map((r) => r.current_location ?? ''))].sort(), [byLoc])
   const locRows = useMemo(() => byLoc.filter((r) => (!loc || r.current_location === loc) && match(r)), [byLoc, loc, match])
+
+  // 型号下拉：按类别看时列所有类别里有库存的型号（勾了“显示库存为 0”就全列），按位置看时只列这个位置的
+  const visible = useCallback((r: ReportRow) => showZero || Number(r.total_qty ?? 0) > 0, [showZero])
+  const modelRows = useMemo(
+    () => (tab === 'loc' ? byLoc.filter((r) => !loc || r.current_location === loc) : rows.filter(visible)),
+    [tab, byLoc, loc, rows, visible],
+  )
+  const pickModel = (v?: string) => {
+    setModel(v)
+    // 当前类别里没有这个型号，就跳到有它的类别
+    if (!v || tab === 'loc') return
+    const has = (c: string) => rows.some((r) => r.category === c && modelOf(r) === v && visible(r))
+    if (!has(tab)) {
+      const other = CATEGORIES.find(has)
+      if (other) setTab(other)
+    }
+  }
 
   const savePrice = async () => {
     if (!pricing) return
@@ -234,6 +254,7 @@ export default function ReportPage() {
       </div>
       <Space wrap className="filters">
         <Input.Search allowClear placeholder={t('品牌、品名、型号、编码')} style={{ width: 240 }} onSearch={setQ} onChange={(e) => !e.target.value && setQ('')} />
+        <ModelSelect rows={modelRows} value={model} onChange={pickModel} />
         {tab === 'loc' ? (
           <Select
             allowClear
