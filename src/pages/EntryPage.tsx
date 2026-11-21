@@ -66,6 +66,7 @@ type InboundValues = {
   location: string
   customs_status?: string
   boe_no?: string
+  bonded_boe_no?: string
   remark?: string
 }
 
@@ -138,6 +139,7 @@ function InboundForm({ opDate, done }: Ctx) {
       p_location: v.location,
       p_customs_status: v.customs_status ?? '',
       p_boe_no: v.boe_no?.trim() || undefined,
+      p_bonded_boe_no: v.bonded_boe_no?.trim() || undefined,
       p_remark: v.remark?.trim() || undefined,
       p_op_date: opDate,
     })
@@ -228,8 +230,13 @@ function InboundForm({ opDate, done }: Ctx) {
           </Form.Item>
         </Col>
         <Col xs={24} sm={12}>
-          <Form.Item name="boe_no" label={t('BOE 号')}>
-            <Input allowClear autoComplete="off" spellCheck={false} maxLength={60} placeholder="Bill of Entry" />
+          <Form.Item name="bonded_boe_no" label={t('保税仓 BOE 号')}>
+            <Input allowClear autoComplete="off" spellCheck={false} maxLength={60} placeholder="70825506361-0001" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} sm={12}>
+          <Form.Item name="boe_no" label={t('完税 BOE 号')}>
+            <Input allowClear autoComplete="off" spellCheck={false} maxLength={60} placeholder="40126000768" />
           </Form.Item>
         </Col>
       </Row>

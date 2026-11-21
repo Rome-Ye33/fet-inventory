@@ -1,12 +1,14 @@
-import { DownloadOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, ExclamationCircleOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { Button, Checkbox, Input, Select, Space, Table, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import BoeImportModal from '../components/BoeImportModal'
 import LinkButton from '../components/LinkButton'
 import ModelSelect, { modelOf } from '../components/ModelSelect'
 import { CategoryTag, CustomsTag, ExcludedTag, StockStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
+import { useAuth } from '../lib/auth'
 import { exportXlsx, xlsxName } from '../lib/excel'
 import { todayAccra } from '../lib/format'
 import { useT } from '../lib/i18n'
@@ -24,11 +26,13 @@ const inCatBrand = (r: Stock, c: string, b: string) => (!c || r.category === c) 
 export default function VehiclesPage() {
   const t = useT()
   const { locations, options } = useRefData()
+  const { canWrite } = useAuth()
   const [params, setParams] = useSearchParams()
   const [rows, setRows] = useState<Stock[]>([])
   const [loading, setLoading] = useState(false)
   const [drawerVin, setDrawerVin] = useState<string | null>(null)
   const [qInput, setQInput] = useState(params.get('q') ?? '')
+  const [importOpen, setImportOpen] = useState(false)
 
   // 筛选条件放在地址栏里：从概览点过来、刷新、发链接给别人都还是同样的筛选
   const review = params.get('review') === '1'
@@ -38,6 +42,7 @@ export default function VehiclesPage() {
   const brand = params.get('brand') ?? ''
   const model = params.get('model') ?? ''
   const customs = params.get('customs') ?? ''
+  const boe = params.get('boe') ?? ''
   const q = (params.get('q') ?? '').trim().toUpperCase()
 
   const update = (changes: Record<string, string | undefined>) => {
@@ -70,6 +75,22 @@ export default function VehiclesPage() {
   const keepModel = (c: string | undefined, b: string | undefined) =>
     model && rows.some((r) => inCatBrand(r, c ?? '', b ?? '') && modelOf(r) === model) ? model : undefined
 
+  // BOE 号下拉：完税的和保税仓的都列出来，标上是哪种、有几台车
+  const boeOptions = useMemo(() => {
+    const m = new Map<string, { kind: 'paid' | 'bonded'; n: number }>()
+    const add = (no: string | null, kind: 'paid' | 'bonded') => {
+      if (!no) return
+      const e = m.get(no) ?? { kind, n: 0 }
+      e.n++
+      m.set(no, e)
+    }
+    for (const r of rows) {
+      add(r.boe_no, 'paid')
+      add(r.bonded_boe_no, 'bonded')
+    }
+    return [...m].sort(([a], [b]) => a.localeCompare(b)).map(([no, e]) => ({ value: no, label: no, kind: e.kind, n: e.n }))
+  }, [rows])
+
   const shown = useMemo(
     () =>
       rows.filter((r) => {
@@ -81,15 +102,16 @@ export default function VehiclesPage() {
         if (brand && r.brand !== brand) return false
         if (model && modelOf(r) !== model) return false
         if (customs && r.customs_status !== customs) return false
+        if (boe && r.boe_no !== boe && r.bonded_boe_no !== boe) return false
         if (q) {
-          const hay = [r.vin, r.brand, r.product_name, r.model, r.color, r.product_code, r.boe_no, r.remark, r.review_note, r.current_location]
+          const hay = [r.vin, r.brand, r.product_name, r.model, r.color, r.product_code, r.boe_no, r.bonded_boe_no, r.remark, r.review_note, r.current_location]
             .join(' ')
             .toUpperCase()
           if (!hay.includes(q)) return false
         }
         return true
       }),
-    [rows, review, status, loc, cat, brand, model, customs, q],
+    [rows, review, status, loc, cat, brand, model, customs, boe, q],
   )
 
   // 文件名带上筛选条件（位置、状态等），按分部、代理分别导出时好分
@@ -102,6 +124,7 @@ export default function VehiclesPage() {
       brand,
       model,
       customs ? t(customs) : '',
+      boe,
       todayAccra(),
     )
 
@@ -121,7 +144,8 @@ export default function VehiclesPage() {
           [t('库存')]: Number(r.current_qty ?? 0),
           [t('状态')]: t(STOCK_STATUS_LABEL[r.stock_status ?? ''] ?? r.stock_status ?? ''),
           [t('报关状态')]: r.customs_status ? t(r.customs_status) : '',
-          [t('BOE 号')]: r.boe_no,
+          [t('完税 BOE 号')]: r.boe_no,
+          [t('保税仓 BOE 号')]: r.bonded_boe_no,
           [t('入库日期')]: r.inbound_date,
           [t('入库位置')]: r.initial_location,
           [t('最后销售日期')]: r.last_sold_date,
@@ -174,7 +198,8 @@ export default function VehiclesPage() {
       ),
     },
     { title: t('报关状态'), dataIndex: 'customs_status', width: 96, render: (v: string) => <CustomsTag value={v} /> },
-    { title: t('BOE 号'), dataIndex: 'boe_no', width: 150, ellipsis: true },
+    { title: t('完税 BOE 号'), dataIndex: 'boe_no', width: 150, ellipsis: true },
+    { title: t('保税仓 BOE 号'), dataIndex: 'bonded_boe_no', width: 160, ellipsis: true },
     {
       title: t('入库日期'),
       dataIndex: 'inbound_date',
@@ -198,6 +223,11 @@ export default function VehiclesPage() {
           <Button icon={<DownloadOutlined />} onClick={() => void exportExcel()} disabled={!shown.length}>
             {t('导出 Excel')}
           </Button>
+          {canWrite && (
+            <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
+              {t('导入 BOE 表')}
+            </Button>
+          )}
         </Space>
       </div>
       <Space wrap className="filters">
@@ -256,6 +286,24 @@ export default function VehiclesPage() {
           onChange={(v?: string) => setParam('customs', v)}
           options={options.customs_status.map((x) => ({ value: x, label: t(x) }))}
         />
+        <Select<string, { value: string; label: string; kind: 'paid' | 'bonded'; n: number }>
+          allowClear
+          placeholder={t('BOE 号')}
+          style={{ width: 190 }}
+          popupMatchSelectWidth={300}
+          showSearch={{ optionFilterProp: 'label' }}
+          value={boe || undefined}
+          onChange={(v?: string) => setParam('boe', v)}
+          options={boeOptions}
+          optionRender={(o) => (
+            <div className="model-option">
+              <span className="model-option-name">{o.data.label}</span>
+              <span className="model-option-brand">
+                {t(o.data.kind === 'paid' ? '完税' : '保税仓')} · {o.data.n}
+              </span>
+            </div>
+          )}
+        />
         <Checkbox checked={review} onChange={(e) => setParam('review', e.target.checked ? '1' : undefined)}>
           {t('只看待核实')}
         </Checkbox>
@@ -270,11 +318,12 @@ export default function VehiclesPage() {
         loading={loading}
         columns={columns}
         dataSource={shown}
-        scroll={{ x: 1650 }}
+        scroll={{ x: 1810 }}
         pagination={{ defaultPageSize: 50, pageSizeOptions: [20, 50, 100, 200], showSizeChanger: true }}
         rowClassName={(r) => (r.stock_status === 'Void' ? 'row-void' : '')}
       />
       <VehicleDrawer vin={drawerVin} onClose={() => setDrawerVin(null)} onChanged={() => void load()} />
+      <BoeImportModal open={importOpen} vehicles={rows} onClose={() => setImportOpen(false)} onDone={() => void load()} />
     </div>
   )
 }

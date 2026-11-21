@@ -139,6 +139,7 @@ export type Database = {
       vehicles: {
         Row: {
           boe_no: string | null
+          bonded_boe_no: string | null
           brand: string | null
           color: string | null
           created_at: string
@@ -158,6 +159,7 @@ export type Database = {
         }
         Insert: {
           boe_no?: string | null
+          bonded_boe_no?: string | null
           brand?: string | null
           color?: string | null
           created_at?: string
@@ -177,6 +179,7 @@ export type Database = {
         }
         Update: {
           boe_no?: string | null
+          bonded_boe_no?: string | null
           brand?: string | null
           color?: string | null
           created_at?: string
@@ -259,6 +262,7 @@ export type Database = {
       vehicle_stock: {
         Row: {
           boe_no: string | null
+          bonded_boe_no: string | null
           brand: string | null
           category: string | null
           color: string | null
@@ -286,6 +290,7 @@ export type Database = {
     }
     Functions: {
       add_catalog_option: { Args: { p_list: string; p_value: string }; Returns: undefined }
+      import_boe: { Args: { p_rows: Json }; Returns: Json }
       list_invites: {
         Args: never
         Returns: { active: boolean; created_at: string; email: string; registered: boolean; role: string }[]
@@ -296,6 +301,7 @@ export type Database = {
       submit_inbound: {
         Args: {
           p_boe_no?: string
+          p_bonded_boe_no?: string
           p_brand: string
           p_category: string
           p_color: string
@@ -340,6 +346,7 @@ export type Database = {
       update_vehicle: {
         Args: {
           p_boe_no?: string
+          p_bonded_boe_no?: string
           p_customs_status?: string
           p_excluded?: boolean
           p_model?: string
