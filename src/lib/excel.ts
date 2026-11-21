@@ -19,3 +19,10 @@ export async function exportXlsx(fileName: string, sheets: Sheet[]): Promise<voi
   }
   XLSX.writeFile(wb, fileName)
 }
+
+// 文件名：几段用下划线连起来（空的跳过），去掉文件名里不能用的字符
+export const xlsxName = (...parts: (string | null | undefined)[]) =>
+  parts
+    .map((p) => (p ?? '').trim().replace(/[\\/:*?"<>|]+/g, '-'))
+    .filter(Boolean)
+    .join('_') + '.xlsx'

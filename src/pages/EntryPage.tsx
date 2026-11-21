@@ -65,6 +65,7 @@ type InboundValues = {
   color: string
   location: string
   customs_status?: string
+  boe_no?: string
   remark?: string
 }
 
@@ -136,6 +137,7 @@ function InboundForm({ opDate, done }: Ctx) {
       p_color: v.color.trim(),
       p_location: v.location,
       p_customs_status: v.customs_status ?? '',
+      p_boe_no: v.boe_no?.trim() || undefined,
       p_remark: v.remark?.trim() || undefined,
       p_op_date: opDate,
     })
@@ -151,7 +153,7 @@ function InboundForm({ opDate, done }: Ctx) {
     if (fresh.length || (code && !productByCode.has(code))) void reload()
     setBusy(false)
     message.success(t('入库成功：{vin}，流水号 {seq}', { vin: normVin(v.vin), seq: seq ?? '' }))
-    // 同一批车常常一样：留着产品和位置，只清车架号和备注
+    // 同一批车常常一样：留着产品、位置、报关状态和 BOE 号，只清车架号和备注
     form.setFieldsValue({ vin: '', remark: '' })
     setFound(null)
     done()
@@ -223,6 +225,11 @@ function InboundForm({ opDate, done }: Ctx) {
         <Col xs={24} sm={12}>
           <Form.Item name="customs_status" label={t('报关状态')}>
             <Select allowClear options={options.customs_status.map((x) => ({ value: x, label: t(x) }))} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} sm={12}>
+          <Form.Item name="boe_no" label={t('BOE 号')}>
+            <Input allowClear autoComplete="off" spellCheck={false} maxLength={60} placeholder="Bill of Entry" />
           </Form.Item>
         </Col>
       </Row>

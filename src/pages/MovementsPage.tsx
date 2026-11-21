@@ -10,7 +10,7 @@ import VehicleDrawer from '../components/VehicleDrawer'
 import VoidButton from '../components/VoidButton'
 import LinkButton from '../components/LinkButton'
 import { useAuth } from '../lib/auth'
-import { exportXlsx } from '../lib/excel'
+import { exportXlsx, xlsxName } from '../lib/excel'
 import { dateTime, todayAccra } from '../lib/format'
 import { trServer, useT } from '../lib/i18n'
 import { ACTION_LABEL, CATEGORIES, CATEGORY_LABEL, MOVE_STATUS_LABEL } from '../lib/labels'
@@ -88,7 +88,7 @@ export default function MovementsPage() {
   }, [shown])
 
   const exportExcel = () =>
-    exportXlsx(`${t('流水')}_${from ?? ''}_${to ?? ''}.xlsx`, [
+    exportXlsx(xlsxName(t('流水'), loc, action ? t(ACTION_LABEL[action] ?? action) : '', model, from, to), [
       {
         name: t('流水'),
         rows: shown.map((r) => ({

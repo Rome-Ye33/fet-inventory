@@ -48,6 +48,7 @@ export function VehicleInfo({ v, column }: { v: Stock; column?: number }) {
         { key: 'loc', label: t('当前位置'), children: v.current_location },
         { key: 'qty', label: t('库存 / 入库数量'), children: qty },
         { key: 'customs', label: t('报关状态'), children: <CustomsTag value={v.customs_status} /> },
+        { key: 'boe', label: t('BOE 号'), children: v.boe_no ? <Typography.Text copyable>{v.boe_no}</Typography.Text> : '' },
         { key: 'in', label: t('入库日期'), children: v.inbound_date },
         { key: 'sold', label: t('最后销售日期'), children: v.last_sold_date },
         ...(v.price_usd != null ? [{ key: 'price', label: t('单价（美元）'), children: usd(v.price_usd) }] : []),
@@ -57,9 +58,9 @@ export function VehicleInfo({ v, column }: { v: Stock; column?: number }) {
   )
 }
 
-type EditValues = { model: string; customs_status: string; remark: string; review_note: string; excluded: boolean }
+type EditValues = { model: string; customs_status: string; boe_no: string; remark: string; review_note: string; excluded: boolean }
 
-/** 车辆详情：基本情况、出入库记录；能录入的人可以改型号、报关状态、备注、待核实说明、是否计入库存，也可以作废流水 */
+/** 车辆详情：基本情况、出入库记录；能录入的人可以改型号、报关状态、BOE 号、备注、待核实说明、是否计入库存，也可以作废流水 */
 export default function VehicleDrawer({ vin, onClose, onChanged }: { vin: string | null; onClose: () => void; onChanged?: () => void }) {
   const t = useT()
   const { message } = App.useApp()
@@ -101,6 +102,7 @@ export default function VehicleDrawer({ vin, onClose, onChanged }: { vin: string
     form.setFieldsValue({
       model: row.model ?? '',
       customs_status: row.customs_status ?? '',
+      boe_no: row.boe_no ?? '',
       remark: row.remark ?? '',
       review_note: row.review_note ?? '',
       excluded: !!row.excluded,
@@ -115,6 +117,7 @@ export default function VehicleDrawer({ vin, onClose, onChanged }: { vin: string
       p_vin: row.vin,
       p_model: v.model?.trim() ?? '',
       p_customs_status: v.customs_status || undefined,
+      p_boe_no: v.boe_no?.trim() ?? '',
       p_remark: v.remark?.trim() ?? '',
       p_review_note: v.review_note?.trim() ?? '',
       p_excluded: v.excluded,
@@ -216,6 +219,9 @@ export default function VehicleDrawer({ vin, onClose, onChanged }: { vin: string
           </Form.Item>
           <Form.Item name="customs_status" label={t('报关状态')}>
             <Select allowClear options={options.customs_status.map((x) => ({ value: x, label: t(x) }))} />
+          </Form.Item>
+          <Form.Item name="boe_no" label={t('BOE 号')}>
+            <Input allowClear autoComplete="off" spellCheck={false} maxLength={60} placeholder="Bill of Entry" />
           </Form.Item>
           <Form.Item name="remark" label={t('备注')}>
             <Input.TextArea rows={2} maxLength={500} />

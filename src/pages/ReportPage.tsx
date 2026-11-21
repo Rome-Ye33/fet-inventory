@@ -6,7 +6,7 @@ import ModelSelect, { modelOf } from '../components/ModelSelect'
 import { CategoryTag } from '../components/Tags'
 import { useAuth } from '../lib/auth'
 import { errorText } from '../lib/errors'
-import { exportXlsx } from '../lib/excel'
+import { exportXlsx, xlsxName } from '../lib/excel'
 import { money, todayAccra, usd } from '../lib/format'
 import { useT } from '../lib/i18n'
 import { CATEGORIES, CATEGORY_LABEL } from '../lib/labels'
@@ -204,37 +204,38 @@ export default function ReportPage() {
     { title: t('数量'), dataIndex: 'qty', width: 72, align: 'right', render: (v: number) => <strong className="num">{Number(v ?? 0)}</strong> },
   ]
 
+  // 导出跟着页面上的筛选走（搜索、型号、显示库存为 0）；在“按位置”里选了一个位置，就只导出这个位置
   const exportExcel = () => {
     const catSheet = (c: string) => ({
       name: t(CATEGORY_LABEL[c]),
-      rows: rows
-        .filter((r) => r.category === c && (showZero || Number(r.total_qty ?? 0) > 0))
-        .map((r) => ({
-          [t('品牌')]: r.brand,
-          [t('品名')]: r.product_name,
-          [t('型号')]: r.model,
-          [t('颜色')]: r.color,
-          [t('产品编码')]: r.product_code,
-          [t('库存')]: Number(r.total_qty ?? 0),
-          [t('单价（美元）')]: r.price_usd == null ? null : Number(r.price_usd),
-          [t('金额（美元）')]: amount(r),
-        })),
+      rows: (byCat[c] ?? []).map((r) => ({
+        [t('品牌')]: r.brand,
+        [t('品名')]: r.product_name,
+        [t('型号')]: r.model,
+        [t('颜色')]: r.color,
+        [t('产品编码')]: r.product_code,
+        [t('库存')]: Number(r.total_qty ?? 0),
+        [t('单价（美元）')]: r.price_usd == null ? null : Number(r.price_usd),
+        [t('金额（美元）')]: amount(r),
+      })),
     })
-    return exportXlsx(`${t('库存报表')}_${todayAccra()}.xlsx`, [
+    const locSheet = (name: string, list: LocDetail[]) => ({
+      name,
+      rows: list.map((r) => ({
+        [t('位置')]: r.current_location,
+        [t('类别')]: t(CATEGORY_LABEL[r.category ?? ''] ?? r.category ?? ''),
+        [t('品牌')]: r.brand,
+        [t('品名')]: r.product_name,
+        [t('型号')]: r.model,
+        [t('颜色')]: r.color,
+        [t('产品编码')]: r.product_code,
+        [t('数量')]: Number(r.qty ?? 0),
+      })),
+    })
+    if (tab === 'loc' && loc) return exportXlsx(xlsxName(t('库存报表'), loc, model, todayAccra()), [locSheet(loc, locRows)])
+    return exportXlsx(xlsxName(t('库存报表'), model, todayAccra()), [
       ...CATEGORIES.map(catSheet).filter((s) => s.rows.length),
-      {
-        name: t('按位置'),
-        rows: byLoc.map((r) => ({
-          [t('位置')]: r.current_location,
-          [t('类别')]: t(CATEGORY_LABEL[r.category ?? ''] ?? r.category ?? ''),
-          [t('品牌')]: r.brand,
-          [t('品名')]: r.product_name,
-          [t('型号')]: r.model,
-          [t('颜色')]: r.color,
-          [t('产品编码')]: r.product_code,
-          [t('数量')]: Number(r.qty ?? 0),
-        })),
-      },
+      locSheet(t('按位置'), byLoc.filter(match)),
     ])
   }
 

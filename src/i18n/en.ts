@@ -38,6 +38,7 @@ const VALUES: Record<string, string> = {
   "型号": "Model",
   "颜色": "Color",
   "报关状态": "Customs status",
+  "BOE 号": "BOE No.",
 
   // 数据库函数的报错（% 换成了 {占位}）
   "请先登录": "Please sign in first",

@@ -138,6 +138,7 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          boe_no: string | null
           brand: string | null
           color: string | null
           created_at: string
@@ -156,6 +157,7 @@ export type Database = {
           vin: string
         }
         Insert: {
+          boe_no?: string | null
           brand?: string | null
           color?: string | null
           created_at?: string
@@ -174,6 +176,7 @@ export type Database = {
           vin: string
         }
         Update: {
+          boe_no?: string | null
           brand?: string | null
           color?: string | null
           created_at?: string
@@ -255,6 +258,7 @@ export type Database = {
       }
       vehicle_stock: {
         Row: {
+          boe_no: string | null
           brand: string | null
           category: string | null
           color: string | null
@@ -291,6 +295,7 @@ export type Database = {
       set_user_access: { Args: { p_active?: boolean; p_email: string; p_role?: string }; Returns: undefined }
       submit_inbound: {
         Args: {
+          p_boe_no?: string
           p_brand: string
           p_category: string
           p_color: string
@@ -334,6 +339,7 @@ export type Database = {
       }
       update_vehicle: {
         Args: {
+          p_boe_no?: string
           p_customs_status?: string
           p_excluded?: boolean
           p_model?: string

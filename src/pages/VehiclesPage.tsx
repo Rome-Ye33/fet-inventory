@@ -7,7 +7,7 @@ import LinkButton from '../components/LinkButton'
 import ModelSelect, { modelOf } from '../components/ModelSelect'
 import { CategoryTag, CustomsTag, ExcludedTag, StockStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
-import { exportXlsx } from '../lib/excel'
+import { exportXlsx, xlsxName } from '../lib/excel'
 import { todayAccra } from '../lib/format'
 import { useT } from '../lib/i18n'
 import { CATEGORIES, CATEGORY_LABEL, STOCK_STATUS_LABEL } from '../lib/labels'
@@ -82,7 +82,7 @@ export default function VehiclesPage() {
         if (model && modelOf(r) !== model) return false
         if (customs && r.customs_status !== customs) return false
         if (q) {
-          const hay = [r.vin, r.brand, r.product_name, r.model, r.color, r.product_code, r.remark, r.review_note, r.current_location]
+          const hay = [r.vin, r.brand, r.product_name, r.model, r.color, r.product_code, r.boe_no, r.remark, r.review_note, r.current_location]
             .join(' ')
             .toUpperCase()
           if (!hay.includes(q)) return false
@@ -92,8 +92,21 @@ export default function VehiclesPage() {
     [rows, review, status, loc, cat, brand, model, customs, q],
   )
 
+  // 文件名带上筛选条件（位置、状态等），按分部、代理分别导出时好分
+  const fileName = () =>
+    xlsxName(
+      t('车辆'),
+      loc,
+      review ? t('待核实') : status && status !== 'all' ? t(STOCK_STATUS_LABEL[status] ?? status) : '',
+      cat ? t(CATEGORY_LABEL[cat] ?? cat) : '',
+      brand,
+      model,
+      customs ? t(customs) : '',
+      todayAccra(),
+    )
+
   const exportExcel = () =>
-    exportXlsx(`${t('车辆')}_${todayAccra()}.xlsx`, [
+    exportXlsx(fileName(), [
       {
         name: t('车辆'),
         rows: shown.map((r) => ({
@@ -108,6 +121,7 @@ export default function VehiclesPage() {
           [t('库存')]: Number(r.current_qty ?? 0),
           [t('状态')]: t(STOCK_STATUS_LABEL[r.stock_status ?? ''] ?? r.stock_status ?? ''),
           [t('报关状态')]: r.customs_status ? t(r.customs_status) : '',
+          [t('BOE 号')]: r.boe_no,
           [t('入库日期')]: r.inbound_date,
           [t('入库位置')]: r.initial_location,
           [t('最后销售日期')]: r.last_sold_date,
@@ -160,6 +174,7 @@ export default function VehiclesPage() {
       ),
     },
     { title: t('报关状态'), dataIndex: 'customs_status', width: 96, render: (v: string) => <CustomsTag value={v} /> },
+    { title: t('BOE 号'), dataIndex: 'boe_no', width: 150, ellipsis: true },
     {
       title: t('入库日期'),
       dataIndex: 'inbound_date',
@@ -255,7 +270,7 @@ export default function VehiclesPage() {
         loading={loading}
         columns={columns}
         dataSource={shown}
-        scroll={{ x: 1500 }}
+        scroll={{ x: 1650 }}
         pagination={{ defaultPageSize: 50, pageSizeOptions: [20, 50, 100, 200], showSizeChanger: true }}
         rowClassName={(r) => (r.stock_status === 'Void' ? 'row-void' : '')}
       />
