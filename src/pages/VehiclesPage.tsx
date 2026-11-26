@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import BoeImportModal from '../components/BoeImportModal'
 import LinkButton from '../components/LinkButton'
-import ModelSelect, { modelOf } from '../components/ModelSelect'
+import ModelSelect, { modelOf, nameOf } from '../components/ModelSelect'
 import { CategoryTag, CustomsTag, ExcludedTag, StockStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
 import { useAuth } from '../lib/auth'
@@ -40,6 +40,7 @@ export default function VehiclesPage() {
   const loc = params.get('loc') ?? ''
   const cat = params.get('cat') ?? ''
   const brand = params.get('brand') ?? ''
+  const name = params.get('name') ?? ''
   const model = params.get('model') ?? ''
   const customs = params.get('customs') ?? ''
   const boe = params.get('boe') ?? ''
@@ -69,11 +70,16 @@ export default function VehiclesPage() {
   }, [load])
 
   const brands = useMemo(() => [...new Set(rows.map((r) => r.brand ?? '').filter(Boolean))].sort(), [rows])
-  // 型号下拉跟着类别、品牌走：选了品牌就只列这个品牌的型号
-  const modelRows = useMemo(() => rows.filter((r) => inCatBrand(r, cat, brand)), [rows, cat, brand])
-  // 换了类别或品牌以后，原来选的型号对不上就一起清掉，免得筛出来是空的
-  const keepModel = (c: string | undefined, b: string | undefined) =>
-    model && rows.some((r) => inCatBrand(r, c ?? '', b ?? '') && modelOf(r) === model) ? model : undefined
+  // 品名、型号下拉跟着类别、品牌走：选了品牌就只列这个品牌的；型号还跟着品名走（自卸车和自卸车U斗型号一样，靠品名分）
+  const nameRows = useMemo(() => rows.filter((r) => inCatBrand(r, cat, brand)), [rows, cat, brand])
+  const modelRows = useMemo(() => nameRows.filter((r) => !name || nameOf(r) === name), [nameRows, name])
+  // 换了类别、品牌或品名以后，原来选的品名、型号对不上就一起清掉，免得筛出来是空的
+  const keep = (c: string | undefined, b: string | undefined, n: string | undefined) => {
+    const fits = (r: Stock) => inCatBrand(r, c ?? '', b ?? '')
+    const keptName = n && rows.some((r) => fits(r) && nameOf(r) === n) ? n : undefined
+    const keptModel = model && rows.some((r) => fits(r) && (!keptName || nameOf(r) === keptName) && modelOf(r) === model) ? model : undefined
+    return { name: keptName, model: keptModel }
+  }
 
   // BOE 号下拉：完税的和保税仓的都列出来，标上是哪种、有几台车
   const boeOptions = useMemo(() => {
@@ -100,6 +106,7 @@ export default function VehiclesPage() {
         if (loc && r.current_location !== loc) return false
         if (cat && r.category !== cat) return false
         if (brand && r.brand !== brand) return false
+        if (name && nameOf(r) !== name) return false
         if (model && modelOf(r) !== model) return false
         if (customs && r.customs_status !== customs) return false
         if (boe && r.boe_no !== boe && r.bonded_boe_no !== boe) return false
@@ -111,7 +118,7 @@ export default function VehiclesPage() {
         }
         return true
       }),
-    [rows, review, status, loc, cat, brand, model, customs, boe, q],
+    [rows, review, status, loc, cat, brand, name, model, customs, boe, q],
   )
 
   // 文件名带上筛选条件（位置、状态等），按分部、代理分别导出时好分
@@ -122,6 +129,7 @@ export default function VehiclesPage() {
       review ? t('待核实') : status && status !== 'all' ? t(STOCK_STATUS_LABEL[status] ?? status) : '',
       cat ? t(CATEGORY_LABEL[cat] ?? cat) : '',
       brand,
+      name,
       model,
       customs ? t(customs) : '',
       boe,
@@ -256,7 +264,7 @@ export default function VehiclesPage() {
           placeholder={t('类别')}
           style={{ width: 120 }}
           value={cat || undefined}
-          onChange={(v?: string) => update({ cat: v, model: keepModel(v, brand) })}
+          onChange={(v?: string) => update({ cat: v, ...keep(v, brand, name) })}
           options={CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_LABEL[c]) }))}
         />
         <Select
@@ -274,9 +282,10 @@ export default function VehiclesPage() {
           style={{ width: 160 }}
           showSearch={{ optionFilterProp: 'label' }}
           value={brand || undefined}
-          onChange={(v?: string) => update({ brand: v, model: keepModel(cat, v) })}
+          onChange={(v?: string) => update({ brand: v, ...keep(cat, v, name) })}
           options={brands.map((b) => ({ value: b, label: b }))}
         />
+        <ModelSelect field="product_name" rows={nameRows} value={name} onChange={(v) => update(keep(cat, brand, v))} showBrands={!brand} />
         <ModelSelect rows={modelRows} value={model} onChange={(v) => setParam('model', v)} showBrands={!brand} />
         <Select
           allowClear

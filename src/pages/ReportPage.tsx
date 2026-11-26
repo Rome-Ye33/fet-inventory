@@ -2,7 +2,7 @@ import { DownloadOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icon
 import { App, Button, Checkbox, Input, InputNumber, Modal, Select, Space, Table, Tabs, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import ModelSelect, { modelOf } from '../components/ModelSelect'
+import ModelSelect, { modelOf, nameOf } from '../components/ModelSelect'
 import { CategoryTag } from '../components/Tags'
 import { useAuth } from '../lib/auth'
 import { errorText } from '../lib/errors'
@@ -37,6 +37,7 @@ export default function ReportPage() {
   const [tab, setTab] = useState<string>('Passenger')
   const [showZero, setShowZero] = useState(false)
   const [q, setQ] = useState('')
+  const [name, setName] = useState<string | undefined>()
   const [model, setModel] = useState<string | undefined>()
   const [loc, setLoc] = useState<string | undefined>()
   const [pricing, setPricing] = useState<{ code: string; name: string; price: number | null } | null>(null)
@@ -63,12 +64,13 @@ export default function ReportPage() {
 
   const match = useCallback(
     (r: { brand: string | null; product_name: string | null; model: string | null; color: string | null; product_code: string | null }) => {
+      if (name && nameOf(r) !== name) return false
       if (model && modelOf(r) !== model) return false
       const s = q.trim().toUpperCase()
       if (!s) return true
       return [r.brand, r.product_name, r.model, r.color, r.product_code].join(' ').toUpperCase().includes(s)
     },
-    [q, model],
+    [q, name, model],
   )
 
   const byCat = useMemo(() => {
@@ -84,21 +86,30 @@ export default function ReportPage() {
   const locNames = useMemo(() => [...new Set(byLoc.map((r) => r.current_location ?? ''))].sort(), [byLoc])
   const locRows = useMemo(() => byLoc.filter((r) => (!loc || r.current_location === loc) && match(r)), [byLoc, loc, match])
 
-  // 型号下拉：按类别看时列所有类别里有库存的型号（勾了“显示库存为 0”就全列），按位置看时只列这个位置的
+  // 品名、型号下拉：按类别看时列所有类别里有库存的（勾了“显示库存为 0”就全列），按位置看时只列这个位置的；型号还跟着品名走
   const visible = useCallback((r: ReportRow) => showZero || Number(r.total_qty ?? 0) > 0, [showZero])
-  const modelRows = useMemo(
+  const nameRows = useMemo(
     () => (tab === 'loc' ? byLoc.filter((r) => !loc || r.current_location === loc) : rows.filter(visible)),
     [tab, byLoc, loc, rows, visible],
   )
+  const modelRows = useMemo(() => nameRows.filter((r) => !name || nameOf(r) === name), [nameRows, name])
+  // 当前类别里没有这个品名、型号，就跳到有它的类别
+  const jump = (has: (c: string) => boolean) => {
+    if (tab === 'loc' || has(tab)) return
+    const other = CATEGORIES.find(has)
+    if (other) setTab(other)
+  }
+  const pickName = (v?: string) => {
+    setName(v)
+    if (!v) return
+    // 原来选的型号这个品名里没有就清掉
+    if (model && !rows.some((r) => nameOf(r) === v && modelOf(r) === model)) setModel(undefined)
+    jump((c) => rows.some((r) => r.category === c && nameOf(r) === v && visible(r)))
+  }
   const pickModel = (v?: string) => {
     setModel(v)
-    // 当前类别里没有这个型号，就跳到有它的类别
-    if (!v || tab === 'loc') return
-    const has = (c: string) => rows.some((r) => r.category === c && modelOf(r) === v && visible(r))
-    if (!has(tab)) {
-      const other = CATEGORIES.find(has)
-      if (other) setTab(other)
-    }
+    if (!v) return
+    jump((c) => rows.some((r) => r.category === c && (!name || nameOf(r) === name) && modelOf(r) === v && visible(r)))
   }
 
   const savePrice = async () => {
@@ -232,8 +243,8 @@ export default function ReportPage() {
         [t('数量')]: Number(r.qty ?? 0),
       })),
     })
-    if (tab === 'loc' && loc) return exportXlsx(xlsxName(t('库存报表'), loc, model, todayAccra()), [locSheet(loc, locRows)])
-    return exportXlsx(xlsxName(t('库存报表'), model, todayAccra()), [
+    if (tab === 'loc' && loc) return exportXlsx(xlsxName(t('库存报表'), loc, name, model, todayAccra()), [locSheet(loc, locRows)])
+    return exportXlsx(xlsxName(t('库存报表'), name, model, todayAccra()), [
       ...CATEGORIES.map(catSheet).filter((s) => s.rows.length),
       locSheet(t('按位置'), byLoc.filter(match)),
     ])
@@ -255,6 +266,7 @@ export default function ReportPage() {
       </div>
       <Space wrap className="filters">
         <Input.Search allowClear placeholder={t('品牌、品名、型号、编码')} style={{ width: 240 }} onSearch={setQ} onChange={(e) => !e.target.value && setQ('')} />
+        <ModelSelect field="product_name" rows={nameRows} value={name} onChange={pickName} />
         <ModelSelect rows={modelRows} value={model} onChange={pickModel} />
         {tab === 'loc' ? (
           <Select

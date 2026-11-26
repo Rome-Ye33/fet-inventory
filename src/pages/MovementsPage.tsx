@@ -4,7 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import ModelSelect, { modelOf } from '../components/ModelSelect'
+import ModelSelect, { modelOf, nameOf } from '../components/ModelSelect'
 import { ActionTag, CategoryTag, MoveStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
 import VoidButton from '../components/VoidButton'
@@ -31,6 +31,7 @@ export default function MovementsPage() {
   const [action, setAction] = useState<string | undefined>()
   const [status, setStatus] = useState<string | undefined>()
   const [cat, setCat] = useState<string | undefined>()
+  const [name, setName] = useState<string | undefined>()
   const [model, setModel] = useState<string | undefined>()
   const [loc, setLoc] = useState<string | undefined>()
   const [q, setQ] = useState('')
@@ -61,6 +62,7 @@ export default function MovementsPage() {
       if (action && r.action !== action) return false
       if (status && r.status !== status) return false
       if (cat && r.category !== cat) return false
+      if (name && nameOf(r) !== name) return false
       if (model && modelOf(r) !== model) return false
       if (loc && r.from_location !== loc && r.to_location !== loc) return false
       if (s) {
@@ -71,14 +73,22 @@ export default function MovementsPage() {
       }
       return true
     })
-  }, [rows, action, status, cat, model, loc, q])
+  }, [rows, action, status, cat, name, model, loc, q])
 
-  // 型号下拉只列选中类别里有的型号
-  const modelRows = useMemo(() => (cat ? rows.filter((r) => r.category === cat) : rows), [rows, cat])
+  // 品名、型号下拉只列选中类别里有的；型号还跟着品名走
+  const nameRows = useMemo(() => (cat ? rows.filter((r) => r.category === cat) : rows), [rows, cat])
+  const modelRows = useMemo(() => nameRows.filter((r) => !name || nameOf(r) === name), [nameRows, name])
+  // 换了类别或品名，原来选的品名、型号对不上就一起清掉
   const changeCat = (v?: string) => {
     setCat(v)
-    // 换了类别，原来选的型号这个类别里没有就一起清掉
-    if (model && v && !rows.some((r) => r.category === v && modelOf(r) === model)) setModel(undefined)
+    const inCat = (r: Movement) => !v || r.category === v
+    const keptName = name && rows.some((r) => inCat(r) && nameOf(r) === name) ? name : undefined
+    if (keptName !== name) setName(keptName)
+    if (model && !rows.some((r) => inCat(r) && (!keptName || nameOf(r) === keptName) && modelOf(r) === model)) setModel(undefined)
+  }
+  const changeName = (v?: string) => {
+    setName(v)
+    if (model && v && !rows.some((r) => nameOf(r) === v && modelOf(r) === model)) setModel(undefined)
   }
 
   const totals = useMemo(() => {
@@ -88,7 +98,7 @@ export default function MovementsPage() {
   }, [shown])
 
   const exportExcel = () =>
-    exportXlsx(xlsxName(t('流水'), loc, action ? t(ACTION_LABEL[action] ?? action) : '', model, from, to), [
+    exportXlsx(xlsxName(t('流水'), loc, action ? t(ACTION_LABEL[action] ?? action) : '', name, model, from, to), [
       {
         name: t('流水'),
         rows: shown.map((r) => ({
@@ -205,6 +215,7 @@ export default function MovementsPage() {
           onChange={changeCat}
           options={CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_LABEL[c]) }))}
         />
+        <ModelSelect field="product_name" rows={nameRows} value={name} onChange={changeName} />
         <ModelSelect rows={modelRows} value={model} onChange={setModel} />
         <Select
           allowClear
