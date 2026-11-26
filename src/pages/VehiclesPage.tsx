@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import BoeImportModal from '../components/BoeImportModal'
 import LinkButton from '../components/LinkButton'
-import ModelSelect, { modelOf, nameOf } from '../components/ModelSelect'
+import ModelSelect, { colorOf, modelOf, nameOf } from '../components/ModelSelect'
 import { CategoryTag, CustomsTag, ExcludedTag, StockStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
 import { useAuth } from '../lib/auth'
@@ -42,6 +42,7 @@ export default function VehiclesPage() {
   const brand = params.get('brand') ?? ''
   const name = params.get('name') ?? ''
   const model = params.get('model') ?? ''
+  const color = params.get('color') ?? ''
   const customs = params.get('customs') ?? ''
   const boe = params.get('boe') ?? ''
   const q = (params.get('q') ?? '').trim().toUpperCase()
@@ -73,12 +74,15 @@ export default function VehiclesPage() {
   // 品名、型号下拉跟着类别、品牌走：选了品牌就只列这个品牌的；型号还跟着品名走（自卸车和自卸车U斗型号一样，靠品名分）
   const nameRows = useMemo(() => rows.filter((r) => inCatBrand(r, cat, brand)), [rows, cat, brand])
   const modelRows = useMemo(() => nameRows.filter((r) => !name || nameOf(r) === name), [nameRows, name])
-  // 换了类别、品牌或品名以后，原来选的品名、型号对不上就一起清掉，免得筛出来是空的
-  const keep = (c: string | undefined, b: string | undefined, n: string | undefined) => {
+  const colorRows = useMemo(() => modelRows.filter((r) => !model || modelOf(r) === model), [modelRows, model])
+  // 换了类别、品牌、品名或型号以后，原来选的品名、型号、颜色对不上就一起清掉，免得筛出来是空的
+  const keep = (c: string | undefined, b: string | undefined, n: string | undefined, m: string | undefined) => {
     const fits = (r: Stock) => inCatBrand(r, c ?? '', b ?? '')
     const keptName = n && rows.some((r) => fits(r) && nameOf(r) === n) ? n : undefined
-    const keptModel = model && rows.some((r) => fits(r) && (!keptName || nameOf(r) === keptName) && modelOf(r) === model) ? model : undefined
-    return { name: keptName, model: keptModel }
+    const fitsName = (r: Stock) => fits(r) && (!keptName || nameOf(r) === keptName)
+    const keptModel = m && rows.some((r) => fitsName(r) && modelOf(r) === m) ? m : undefined
+    const keptColor = color && rows.some((r) => fitsName(r) && (!keptModel || modelOf(r) === keptModel) && colorOf(r) === color) ? color : undefined
+    return { name: keptName, model: keptModel, color: keptColor }
   }
 
   // BOE 号下拉：完税的和保税仓的都列出来，标上是哪种、有几台车
@@ -108,6 +112,7 @@ export default function VehiclesPage() {
         if (brand && r.brand !== brand) return false
         if (name && nameOf(r) !== name) return false
         if (model && modelOf(r) !== model) return false
+        if (color && colorOf(r) !== color) return false
         if (customs && r.customs_status !== customs) return false
         if (boe && r.boe_no !== boe && r.bonded_boe_no !== boe) return false
         if (q) {
@@ -118,7 +123,7 @@ export default function VehiclesPage() {
         }
         return true
       }),
-    [rows, review, status, loc, cat, brand, name, model, customs, boe, q],
+    [rows, review, status, loc, cat, brand, name, model, color, customs, boe, q],
   )
 
   // 文件名带上筛选条件（位置、状态等），按分部、代理分别导出时好分
@@ -131,6 +136,7 @@ export default function VehiclesPage() {
       brand,
       name,
       model,
+      color,
       customs ? t(customs) : '',
       boe,
       todayAccra(),
@@ -264,7 +270,7 @@ export default function VehiclesPage() {
           placeholder={t('类别')}
           style={{ width: 120 }}
           value={cat || undefined}
-          onChange={(v?: string) => update({ cat: v, ...keep(v, brand, name) })}
+          onChange={(v?: string) => update({ cat: v, ...keep(v, brand, name, model) })}
           options={CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_LABEL[c]) }))}
         />
         <Select
@@ -282,11 +288,12 @@ export default function VehiclesPage() {
           style={{ width: 160 }}
           showSearch={{ optionFilterProp: 'label' }}
           value={brand || undefined}
-          onChange={(v?: string) => update({ brand: v, ...keep(cat, v, name) })}
+          onChange={(v?: string) => update({ brand: v, ...keep(cat, v, name, model) })}
           options={brands.map((b) => ({ value: b, label: b }))}
         />
-        <ModelSelect field="product_name" rows={nameRows} value={name} onChange={(v) => update(keep(cat, brand, v))} showBrands={!brand} />
-        <ModelSelect rows={modelRows} value={model} onChange={(v) => setParam('model', v)} showBrands={!brand} />
+        <ModelSelect field="product_name" rows={nameRows} value={name} onChange={(v) => update(keep(cat, brand, v, model))} showBrands={!brand} />
+        <ModelSelect rows={modelRows} value={model} onChange={(v) => update(keep(cat, brand, name, v))} showBrands={!brand} />
+        <ModelSelect field="color" rows={colorRows} value={color} onChange={(v) => setParam('color', v)} />
         <Select
           allowClear
           placeholder={t('报关状态')}

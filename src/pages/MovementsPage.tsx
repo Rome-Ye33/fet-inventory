@@ -4,7 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import ModelSelect, { modelOf, nameOf } from '../components/ModelSelect'
+import ModelSelect, { colorOf, modelOf, nameOf } from '../components/ModelSelect'
 import { ActionTag, CategoryTag, MoveStatusTag } from '../components/Tags'
 import VehicleDrawer from '../components/VehicleDrawer'
 import VoidButton from '../components/VoidButton'
@@ -33,6 +33,7 @@ export default function MovementsPage() {
   const [cat, setCat] = useState<string | undefined>()
   const [name, setName] = useState<string | undefined>()
   const [model, setModel] = useState<string | undefined>()
+  const [color, setColor] = useState<string | undefined>()
   const [loc, setLoc] = useState<string | undefined>()
   const [q, setQ] = useState('')
   const [drawerVin, setDrawerVin] = useState<string | null>(null)
@@ -64,6 +65,7 @@ export default function MovementsPage() {
       if (cat && r.category !== cat) return false
       if (name && nameOf(r) !== name) return false
       if (model && modelOf(r) !== model) return false
+      if (color && colorOf(r) !== color) return false
       if (loc && r.from_location !== loc && r.to_location !== loc) return false
       if (s) {
         const hay = [r.vin, r.customer, r.to_location, r.from_location, r.brand, r.product_name, r.model, r.product_code, r.remark, r.outbound_no, String(r.seq)]
@@ -73,23 +75,27 @@ export default function MovementsPage() {
       }
       return true
     })
-  }, [rows, action, status, cat, name, model, loc, q])
+  }, [rows, action, status, cat, name, model, color, loc, q])
 
   // 品名、型号下拉只列选中类别里有的；型号还跟着品名走
   const nameRows = useMemo(() => (cat ? rows.filter((r) => r.category === cat) : rows), [rows, cat])
   const modelRows = useMemo(() => nameRows.filter((r) => !name || nameOf(r) === name), [nameRows, name])
-  // 换了类别或品名，原来选的品名、型号对不上就一起清掉
-  const changeCat = (v?: string) => {
-    setCat(v)
-    const inCat = (r: Movement) => !v || r.category === v
-    const keptName = name && rows.some((r) => inCat(r) && nameOf(r) === name) ? name : undefined
-    if (keptName !== name) setName(keptName)
-    if (model && !rows.some((r) => inCat(r) && (!keptName || nameOf(r) === keptName) && modelOf(r) === model)) setModel(undefined)
+  const colorRows = useMemo(() => modelRows.filter((r) => !model || modelOf(r) === model), [modelRows, model])
+  // 换了类别、品名或型号，原来选的品名、型号、颜色对不上就一起清掉
+  const narrow = (c: string | undefined, n: string | undefined, m: string | undefined) => {
+    const inCat = (r: Movement) => !c || r.category === c
+    const keptName = n && rows.some((r) => inCat(r) && nameOf(r) === n) ? n : undefined
+    const inName = (r: Movement) => inCat(r) && (!keptName || nameOf(r) === keptName)
+    const keptModel = m && rows.some((r) => inName(r) && modelOf(r) === m) ? m : undefined
+    const keptColor = color && rows.some((r) => inName(r) && (!keptModel || modelOf(r) === keptModel) && colorOf(r) === color) ? color : undefined
+    setCat(c)
+    setName(keptName)
+    setModel(keptModel)
+    setColor(keptColor)
   }
-  const changeName = (v?: string) => {
-    setName(v)
-    if (model && v && !rows.some((r) => nameOf(r) === v && modelOf(r) === model)) setModel(undefined)
-  }
+  const changeCat = (v?: string) => narrow(v, name, model)
+  const changeName = (v?: string) => narrow(cat, v, model)
+  const changeModel = (v?: string) => narrow(cat, name, v)
 
   const totals = useMemo(() => {
     const n: Record<string, number> = { INBOUND: 0, SOLD: 0, TRANSFER: 0 }
@@ -98,7 +104,7 @@ export default function MovementsPage() {
   }, [shown])
 
   const exportExcel = () =>
-    exportXlsx(xlsxName(t('流水'), loc, action ? t(ACTION_LABEL[action] ?? action) : '', name, model, from, to), [
+    exportXlsx(xlsxName(t('流水'), loc, action ? t(ACTION_LABEL[action] ?? action) : '', name, model, color, from, to), [
       {
         name: t('流水'),
         rows: shown.map((r) => ({
@@ -216,7 +222,8 @@ export default function MovementsPage() {
           options={CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_LABEL[c]) }))}
         />
         <ModelSelect field="product_name" rows={nameRows} value={name} onChange={changeName} />
-        <ModelSelect rows={modelRows} value={model} onChange={setModel} />
+        <ModelSelect rows={modelRows} value={model} onChange={changeModel} />
+        <ModelSelect field="color" rows={colorRows} value={color} onChange={setColor} />
         <Select
           allowClear
           placeholder={t('位置')}
