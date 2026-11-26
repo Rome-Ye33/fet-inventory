@@ -1,0 +1,1 @@
+import{W as e,d as t}from"./errors-19tNgMaR.js";var n=t();function r({children:t,onClick:r}){return(0,n.jsx)(e,{type:`link`,size:`small`,className:`link-btn`,autoInsertSpace:!1,onClick:r,children:t})}export{r as t};
